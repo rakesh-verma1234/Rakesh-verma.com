@@ -1,0 +1,181 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const bird = document.getElementById('bird');
+    const gameContainer = document.getElementById('game-container');
+    const scoreDisplay = document.getElementById('score-display');
+    const gameOverDisplay = document.getElementById('game-over');
+    const startScreen = document.getElementById('start-screen');
+    
+    let birdPosition = 300;
+    let birdVelocity = 0;
+    let gravity = 0.5;
+    let gameRunning = false;
+    let score = 0;
+    let obstacles = [];
+    let gameSpeed = 2;
+    let obstacleFrequency = 1500; // milliseconds
+    let lastObstacleTime = 0;
+    let gameAreaHeight = 600;
+    let gameAreaWidth = 400;
+    let animationId;
+    
+    // Start game
+    function startGame() {
+        gameRunning = true;
+        score = 0;
+        scoreDisplay.textContent = `Score: ${score}`;
+        birdPosition = 300;
+        birdVelocity = 0;
+        obstacles.forEach(obstacle => obstacle.element.remove());
+        obstacles = [];
+        gameOverDisplay.style.display = 'none';
+        startScreen.style.display = 'none';
+        lastObstacleTime = 0;
+        
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+        gameLoop();
+    }
+    
+    // Game over
+    function endGame() {
+        gameRunning = false;
+        gameOverDisplay.style.display = 'block';
+        cancelAnimationFrame(animationId);
+    }
+    
+    // Game loop
+    function gameLoop(timestamp) {
+        if (!gameRunning) return;
+        
+        // Update bird position
+        birdVelocity += gravity;
+        birdPosition += birdVelocity;
+        bird.style.top = `${birdPosition}px`;
+        
+        // Check for collisions with ground or ceiling
+        if (birdPosition >= gameAreaHeight - 30 || birdPosition <= 0) {
+            endGame();
+            return;
+        }
+        
+        // Generate new obstacles
+        if (timestamp - lastObstacleTime > obstacleFrequency) {
+            createObstacle();
+            lastObstacleTime = timestamp;
+        }
+        
+        // Update obstacles
+        updateObstacles();
+        
+        // Check for collisions with obstacles
+        if (checkCollisions()) {
+            endGame();
+            return;
+        }
+        
+        animationId = requestAnimationFrame(gameLoop);
+    }
+    
+    // Create new obstacle
+    function createObstacle() {
+        const gapHeight = 150;
+        const minTop = 50;
+        const maxTop = gameAreaHeight - gapHeight - minTop;
+        const topHeight = minTop + Math.random() * (maxTop - minTop);
+        
+        const topObstacle = document.createElement('div');
+        topObstacle.className = 'obstacle';
+        topObstacle.style.top = '0';
+        topObstacle.style.height = `${topHeight}px`;
+        gameContainer.appendChild(topObstacle);
+        
+        const bottomObstacle = document.createElement('div');
+        bottomObstacle.className = 'obstacle';
+        bottomObstacle.style.top = `${topHeight + gapHeight}px`;
+        bottomObstacle.style.height = `${gameAreaHeight - topHeight - gapHeight}px`;
+        gameContainer.appendChild(bottomObstacle);
+        
+        obstacles.push({
+            element: topObstacle,
+            x: gameAreaWidth,
+            passed: false
+        });
+        
+        obstacles.push({
+            element: bottomObstacle,
+            x: gameAreaWidth,
+            passed: false
+        });
+    }
+    
+    // Update obstacle positions
+    function updateObstacles() {
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            const obstacle = obstacles[i];
+            obstacle.x -= gameSpeed;
+            obstacle.element.style.right = `${-obstacle.x}px`;
+            
+            // Check if bird passed the obstacle
+            if (!obstacle.passed && obstacle.x < 50) {
+                obstacle.passed = true;
+                // Only increase score when passing a pair of obstacles
+                if (i % 2 === 0) {
+                    score++;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    
+                    // Increase difficulty
+                    if (score % 5 === 0) {
+                        gameSpeed += 0.5;
+                        obstacleFrequency = Math.max(800, obstacleFrequency - 100);
+                    }
+                }
+            }
+            
+            // Remove obstacles that are off screen
+            if (obstacle.x < -60) {
+                obstacle.element.remove();
+                obstacles.splice(i, 1);
+            }
+        }
+    }
+    
+    // Check for collisions
+    function checkCollisions() {
+        const birdRect = bird.getBoundingClientRect();
+        
+        for (const obstacle of obstacles) {
+            const obstacleRect = obstacle.element.getBoundingClientRect();
+            
+            if (birdRect.right > obstacleRect.left && 
+                birdRect.left < obstacleRect.right && 
+                birdRect.bottom > obstacleRect.top && 
+                birdRect.top < obstacleRect.bottom) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    // Jump when space is pressed
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            if (!gameRunning) {
+                startGame();
+            } else {
+                birdVelocity = -10;
+            }
+            e.preventDefault(); // Prevent space from scrolling the page
+        }
+    });
+    
+    // Also allow clicking to jump
+    gameContainer.addEventListener('click', () => {
+        if (!gameRunning) {
+            startGame();
+        } else {
+            birdVelocity = -10;
+        }
+    });
+});
